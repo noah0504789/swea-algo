@@ -3,16 +3,7 @@ package edu.ac.practice.simulation;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Queue;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.*;
 
 import static java.util.Comparator.comparingInt;
 
@@ -48,8 +39,8 @@ import static java.util.Comparator.comparingInt;
  */
 public class 무선_충전 {
     private static final BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    private static final StringBuffer sb = new StringBuffer();
     private static final Queue<int[]> queue = new LinkedList<>();
+    private static final StringBuffer sb = new StringBuffer();
     private static final int[][] DIRS = {{-1,0},{1,0},{0,-1},{0,1}};
     private static final int HEIGHT = 10;
     private static final int WIDTH = 10;
@@ -59,13 +50,17 @@ public class 무선_충전 {
     private static final int LEFT_CMD = 4;
     private static final int A_IDX = 0;
     private static final int B_IDX = 1;
+    private static final WirelessCharger NON_EXIST = new WirelessCharger(10000, 10000, 10000, 10000);
+    private static final WirelessCharger OR_ELSE = new WirelessCharger(10000, 10000, 10000, 0);
     private static StringTokenizer st;
     private static Point[][] map;
-    private static WirelessCharger[] chargers;
+    private static Set<WirelessCharger> aCgrs, bCgrs, commonCgrs, unionCgrs;
+    private static WirelessCharger maxCgr;
     private static int[][] usersPoint;
-    private static int[] historyA, historyB;
-    private static int TC, M, A, chargerX, chargerY, C, P, ans;
+    private static int[] cmdsOfA, cmdsOfB;
+    private static int TC, M, A, cgrX, cgrY, C, P;
     private static int acr, acc, anr, anc, bcr, bcc, bnr, bnc;
+    private static int ans;
 
     static final class Point {
         Set<WirelessCharger> availableChargers;
@@ -158,27 +153,25 @@ public class 무선_충전 {
             M = Integer.parseInt(st.nextToken());
             A = Integer.parseInt(st.nextToken());
 
-            historyA = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
-            historyB = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
-
-            chargers = new WirelessCharger[A];
+            cmdsOfA = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
+            cmdsOfB = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
 
             for (int i = 0; i < A; i++) {
                 st = new StringTokenizer(br.readLine());
-                chargerX = Integer.parseInt(st.nextToken());
-                chargerY = Integer.parseInt(st.nextToken());
+                cgrX = Integer.parseInt(st.nextToken());
+                cgrY = Integer.parseInt(st.nextToken());
                 C = Integer.parseInt(st.nextToken());
                 P = Integer.parseInt(st.nextToken());
 
-                chargers[i] = new WirelessCharger(chargerY-1, chargerX-1, C, P);
-                chargers[i].markServiceArea();
+                new WirelessCharger(cgrY -1, cgrX -1, C, P).markServiceArea();
             }
 
             charge();
 
-            for (int tIdx = 0; tIdx < M; tIdx++) {
-                moveA(tIdx);
-                moveB(tIdx);
+            for (int time = 0; time < M; time++) {
+                moveA(time);
+                moveB(time);
+
                 charge();
             }
 
@@ -196,31 +189,47 @@ public class 무선_충전 {
         bcr = usersPoint[B_IDX][0];
         bcc = usersPoint[B_IDX][1];
 
-        Set<WirelessCharger> aChargers = map[acr][acc].getAvailableChargers();
-        Set<WirelessCharger> bChargers = map[bcr][bcc].getAvailableChargers();
+        aCgrs = map[acr][acc].getAvailableChargers();
+        bCgrs = map[bcr][bcc].getAvailableChargers();
 
         int max = 0;
-        if (Objects.isNull(bChargers)) {
-            max = aChargers.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
-        } else if (Objects.isNull(aChargers)) {
-            max = bChargers.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
-        } else {
-            for (WirelessCharger c1 : aChargers) {
-                for (WirelessCharger c2 : bChargers) {
-                    if (c1.equals(c2)) max = Math.max(max, c1.power);
-                    else max = Math.max(max, c1.power + c2.power);
+
+        if (Objects.nonNull(aCgrs) && Objects.nonNull(bCgrs)) {
+            commonCgrs = new HashSet<>(aCgrs);
+            commonCgrs.retainAll(bCgrs);
+
+            int maxA = aCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
+            int maxB = bCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
+            int maxCommon = commonCgrs.stream().max(comparingInt(WirelessCharger::getPower)).orElseGet(() ->OR_ELSE).power;
+            if (maxCommon == 0) {
+                max = maxA + maxB;
+            } else {
+                unionCgrs = new HashSet<>(aCgrs);
+                unionCgrs.addAll(bCgrs);
+
+                // cond1) a, b 합집합에서, maxCommonPwr보다 큰 원소가 있으면
+                if (unionCgrs.stream().anyMatch(c -> c.power > maxCommon)) {
+                    max = maxA + maxB;
+                } else { // cond2) a, b 각각의 집합에 maxCommon보다 큰 값이 없으면, maxCommonPwr보다 큰 원소가 없으면
+                    int lessMaxCommonPwrAndMaxA = aCgrs.stream().filter(c -> c.equals(maxCommon)).max(comparingInt(WirelessCharger::getPower)).orElseGet(() -> OR_ELSE).power;
+                    int lessMaxCommonPwrAndMaxB = bCgrs.stream().filter(c -> c.equals(maxCommon)).max(comparingInt(WirelessCharger::getPower)).orElseGet(() -> OR_ELSE).power;
+                    max = Math.max(maxCommon, lessMaxCommonPwrAndMaxA+lessMaxCommonPwrAndMaxB);
                 }
             }
+        } else if (Objects.nonNull(aCgrs)) {
+            max = aCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
+        } else if (Objects.nonNull(bCgrs)) {
+            max = bCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
         }
 
         ans += max;
     }
 
-    private static void moveA(int tIdx) {
+    private static void moveA(int time) {
         anr = acr;
         anc = acc;
 
-        int aCmd = historyA[tIdx];
+        int aCmd = cmdsOfA[time];
         if (aCmd == UP_CMD) anr -= 1;
         else if (aCmd == DOWN_CMD) anr += 1;
         else if (aCmd == LEFT_CMD) anc -= 1;
@@ -230,11 +239,11 @@ public class 무선_충전 {
         usersPoint[A_IDX][1] = anc;
     }
 
-    private static void moveB(int tIdx) {
+    private static void moveB(int time) {
         bnr = bcr;
         bnc = bcc;
 
-        int bCmd = historyB[tIdx];
+        int bCmd = cmdsOfB[time];
         if (bCmd == UP_CMD) bnr -= 1;
         else if (bCmd == DOWN_CMD) bnr += 1;
         else if (bCmd == LEFT_CMD) bnc -= 1;
@@ -244,3 +253,4 @@ public class 무선_충전 {
         usersPoint[B_IDX][1] = bnc;
     }
 }
+
