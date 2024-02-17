@@ -20,10 +20,9 @@ import static java.util.Comparator.comparingInt;
     - 거리계산: |X1-X2| + |Y1-Y2|
 
     [무선충전기]
-    - 범위: 충전기로부터 C 거리 내 모든 좌표.
-        - 중첩 영역: 사용자가 원하는 충전기로 충전 가능.
-    - 사용 조건: 사용자는 충전 범위 내에 있어야 함.
-    - 충전량: 성능(P)만큼 충전됨. (여러 사용자들이 동접 시, 충전량은 각각 P/n으로 분배됨.)
+    - 제공 범위: 충전기로부터 C 거리 내 모든 좌표.
+        - 중첩 영역: 사용자가 원하는 충전기 선택 가능.
+    - 충전량: 성능(P)만큼 충전됨. (여러 사용자들이 동시사용 시, 충전량은 각각 P/n으로 분배됨.)
 
     [사용자]
     - 인원: 2명
@@ -31,14 +30,14 @@ import static java.util.Comparator.comparingInt;
     - 이동: 매 초별 주어진 방향으로 한 칸씩 이동
  * @input TC
     - M: 총 이동시간(20<=M<=100), A: 충전기 개수(1<=A<=8)
-    - 초당 사용자 이동 이력(0-STOP, 1-UP, 2-RIGHT, 3-DOWN, 4-LEFT)
+    - 초당 사용자 이동명령 이력(0-STOP, 1-UP, 2-RIGHT, 3-DOWN, 4-LEFT)
     - 충전기 정보: 좌표(X,Y), 충전 범위(C, 1<=C<=4), 성능(P, 10<=P<=500, 짝수)
  * @output
- * @time_complex 30,876 kb / 217 ms
+ * @time_complex 33,020 kb / 259 ms
  * @perf
  */
 public class 무선_충전 {
-    private static final BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    private static final BufferedReader brr = new BufferedReader(new InputStreamReader(System.in));
     private static final Queue<int[]> queue = new LinkedList<>();
     private static final StringBuffer sb = new StringBuffer();
     private static final int[][] DIRS = {{-1,0},{1,0},{0,-1},{0,1}};
@@ -48,31 +47,28 @@ public class 무선_충전 {
     private static final int RIGHT_CMD = 2;
     private static final int DOWN_CMD = 3;
     private static final int LEFT_CMD = 4;
-    private static final int A_IDX = 0;
-    private static final int B_IDX = 1;
-    private static final WirelessCharger NON_EXIST = new WirelessCharger(10000, 10000, 10000, 10000);
-    private static final WirelessCharger OR_ELSE = new WirelessCharger(10000, 10000, 10000, 0);
+    private static final WirelessCharger NO_CHARGING_AREA = new WirelessCharger(-1, -1, -1, 0);
     private static StringTokenizer st;
     private static Point[][] map;
-    private static Set<WirelessCharger> aCgrs, bCgrs, commonCgrs, unionCgrs;
-    private static WirelessCharger maxCgr;
-    private static int[][] usersPoint;
+    private static PriorityQueue<WirelessCharger> aCgrs, bCgrs;
+    private static Set<WirelessCharger> commonCgrs = new HashSet<>(), unionCgrs = new HashSet<>();
+    private static WirelessCharger maxCommonCgr;
     private static int[] cmdsOfA, cmdsOfB;
-    private static int TC, M, A, cgrX, cgrY, C, P;
-    private static int acr, acc, anr, anc, bcr, bcc, bnr, bnc;
+    private static int TC, M, A, cgrX, cgrY, C, P, maxCommonPwr;
+    private static int ar, ac, br, bc;
     private static int ans;
 
     static final class Point {
-        Set<WirelessCharger> availableChargers;
+        PriorityQueue<WirelessCharger> availableChargers;
 
-        public Set<WirelessCharger> getAvailableChargers() {
+        public PriorityQueue<WirelessCharger> getAvailableChargers() {
             return availableChargers;
         }
 
         public void addCharger(WirelessCharger charger) {
-            if (availableChargers == null) availableChargers = new HashSet<>();
+            if (availableChargers == null) availableChargers = new PriorityQueue<>(Comparator.comparingInt(WirelessCharger::getOutput).reversed());
 
-            availableChargers.add(charger);
+            availableChargers.offer(charger);
         }
 
         public boolean hasCharger(WirelessCharger charger) {
@@ -85,17 +81,21 @@ public class 무선_충전 {
     }
 
     static final class WirelessCharger {
-        final int r, c, radius, power;
+        final int r, c, radius, output;
 
-        public WirelessCharger(int r, int c, int radius, int power) {
+        public WirelessCharger(int r, int c, int radius, int output) {
             this.r = r;
             this.c = c;
             this.radius = radius;
-            this.power = power;
+            this.output = output;
         }
 
-        public int getPower() {
-            return power;
+        public int getOutput() {
+            return output;
+        }
+
+        public boolean isOutputHigher(int output) {
+            return this.output > output;
         }
 
         public void markServiceArea() {
@@ -104,20 +104,20 @@ public class 무선_충전 {
 
             while (!queue.isEmpty()) {
                 int[] point = queue.poll();
-                int cr = point[0], cc = point[1], depth = point[2];
+                int cr = point[0], cc = point[1], level = point[2];
+                if (level == radius+1) {
+                    queue.clear();
+                    return;
+                }
+
+                map[cr][cc].addCharger(this);
 
                 for (int[] dir : DIRS) {
-                    if (depth == radius) {
-                        queue.clear();
-                        return;
-                    }
-
                     int nr = cr + dir[0], nc = cc + dir[1];
                     if (nr < 0 || nr >= HEIGHT || nc < 0 || nc >= WIDTH) continue;
                     if (map[nr][nc].hasCharger(this)) continue;
 
-                    map[nr][nc].addCharger(this);
-                    queue.offer(new int[] {nr, nc, depth+1});
+                    queue.offer(new int[] {nr, nc, level+1});
                 }
             }
         }
@@ -137,10 +137,15 @@ public class 무선_충전 {
     }
 
     public static void main(String[] args) throws IOException {
-        TC = Integer.parseInt(br.readLine());
+        TC = Integer.parseInt(brr.readLine());
+
         for (int t = 1; t <= TC; t++) {
             ans = 0;
-            usersPoint = new int[][]{{0, 0}, {HEIGHT-1, WIDTH-1}};
+
+            ar = 0;
+            ac = 0;
+            br = HEIGHT-1;
+            bc = WIDTH-1;
 
             map = new Point[HEIGHT][WIDTH];
             for (int r = 0; r < HEIGHT; r++) {
@@ -149,21 +154,21 @@ public class 무선_충전 {
                 }
             }
 
-            st = new StringTokenizer(br.readLine());
+            st = new StringTokenizer(brr.readLine());
             M = Integer.parseInt(st.nextToken());
             A = Integer.parseInt(st.nextToken());
 
-            cmdsOfA = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
-            cmdsOfB = Arrays.stream(br.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
+            cmdsOfA = Arrays.stream(brr.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
+            cmdsOfB = Arrays.stream(brr.readLine().split(" ")).mapToInt(Integer::parseInt).toArray();
 
             for (int i = 0; i < A; i++) {
-                st = new StringTokenizer(br.readLine());
+                st = new StringTokenizer(brr.readLine());
                 cgrX = Integer.parseInt(st.nextToken());
                 cgrY = Integer.parseInt(st.nextToken());
                 C = Integer.parseInt(st.nextToken());
                 P = Integer.parseInt(st.nextToken());
 
-                new WirelessCharger(cgrY -1, cgrX -1, C, P).markServiceArea();
+                new WirelessCharger(cgrY-1, cgrX-1, C, P).markServiceArea();
             }
 
             charge();
@@ -180,77 +185,64 @@ public class 무선_충전 {
 
         System.out.println(sb);
 
-        br.close();
+        brr.close();
     }
 
     private static void charge() {
-        acr = usersPoint[A_IDX][0];
-        acc = usersPoint[A_IDX][1];
-        bcr = usersPoint[B_IDX][0];
-        bcc = usersPoint[B_IDX][1];
-
-        aCgrs = map[acr][acc].getAvailableChargers();
-        bCgrs = map[bcr][bcc].getAvailableChargers();
+        aCgrs = map[ar][ac].getAvailableChargers();
+        bCgrs = map[br][bc].getAvailableChargers();
 
         int max = 0;
 
+        int maxA = Optional.ofNullable(aCgrs).map(PriorityQueue::peek).orElseGet(() -> NO_CHARGING_AREA).getOutput();
+        int maxB = Optional.ofNullable(bCgrs).map(PriorityQueue::peek).orElseGet(() -> NO_CHARGING_AREA).getOutput();
+
         if (Objects.nonNull(aCgrs) && Objects.nonNull(bCgrs)) {
-            commonCgrs = new HashSet<>(aCgrs);
+            commonCgrs.addAll(aCgrs);
             commonCgrs.retainAll(bCgrs);
 
-            int maxA = aCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
-            int maxB = bCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
-            int maxCommon = commonCgrs.stream().max(comparingInt(WirelessCharger::getPower)).orElseGet(() ->OR_ELSE).power;
-            if (maxCommon == 0) {
+            if (commonCgrs.isEmpty()) {
                 max = maxA + maxB;
             } else {
-                unionCgrs = new HashSet<>(aCgrs);
+                maxCommonCgr = commonCgrs.stream().max(comparingInt(WirelessCharger::getOutput)).get();
+                maxCommonPwr = maxCommonCgr.output;
+
+                unionCgrs.addAll(aCgrs);
                 unionCgrs.addAll(bCgrs);
 
-                // cond1) a, b 합집합에서, maxCommonPwr보다 큰 원소가 있으면
-                if (unionCgrs.stream().anyMatch(c -> c.power > maxCommon)) {
+                if (unionCgrs.stream().anyMatch(c -> c.isOutputHigher(maxCommonPwr))) {
                     max = maxA + maxB;
-                } else { // cond2) a, b 각각의 집합에 maxCommon보다 큰 값이 없으면, maxCommonPwr보다 큰 원소가 없으면
-                    int lessMaxCommonPwrAndMaxA = aCgrs.stream().filter(c -> c.equals(maxCommon)).max(comparingInt(WirelessCharger::getPower)).orElseGet(() -> OR_ELSE).power;
-                    int lessMaxCommonPwrAndMaxB = bCgrs.stream().filter(c -> c.equals(maxCommon)).max(comparingInt(WirelessCharger::getPower)).orElseGet(() -> OR_ELSE).power;
-                    max = Math.max(maxCommon, lessMaxCommonPwrAndMaxA+lessMaxCommonPwrAndMaxB);
+                } else {
+                    int maxAExclCommon = aCgrs.stream().filter(c -> !c.equals(maxCommonCgr)).max(comparingInt(WirelessCharger::getOutput)).orElseGet(() -> NO_CHARGING_AREA).getOutput();
+                    int maxBExclCommon = bCgrs.stream().filter(c -> !c.equals(maxCommonCgr)).max(comparingInt(WirelessCharger::getOutput)).orElseGet(() -> NO_CHARGING_AREA).getOutput();
+
+                    max = Math.max(maxCommonPwr + maxAExclCommon, maxCommonPwr + maxBExclCommon);
                 }
+
+                unionCgrs.clear();
             }
-        } else if (Objects.nonNull(aCgrs)) {
-            max = aCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
-        } else if (Objects.nonNull(bCgrs)) {
-            max = bCgrs.stream().max(comparingInt(WirelessCharger::getPower)).get().power;
+
+            commonCgrs.clear();
+        } else {
+            max = maxA + maxB;
         }
 
         ans += max;
     }
 
     private static void moveA(int time) {
-        anr = acr;
-        anc = acc;
-
         int aCmd = cmdsOfA[time];
-        if (aCmd == UP_CMD) anr -= 1;
-        else if (aCmd == DOWN_CMD) anr += 1;
-        else if (aCmd == LEFT_CMD) anc -= 1;
-        else if (aCmd == RIGHT_CMD) anc += 1;
-
-        usersPoint[A_IDX][0] = anr;
-        usersPoint[A_IDX][1] = anc;
+        if (aCmd == UP_CMD) ar--;
+        else if (aCmd == DOWN_CMD) ar++;
+        else if (aCmd == LEFT_CMD) ac--;
+        else if (aCmd == RIGHT_CMD) ac++;
     }
 
     private static void moveB(int time) {
-        bnr = bcr;
-        bnc = bcc;
-
         int bCmd = cmdsOfB[time];
-        if (bCmd == UP_CMD) bnr -= 1;
-        else if (bCmd == DOWN_CMD) bnr += 1;
-        else if (bCmd == LEFT_CMD) bnc -= 1;
-        else if (bCmd == RIGHT_CMD) bnc += 1;
-
-        usersPoint[B_IDX][0] = bnr;
-        usersPoint[B_IDX][1] = bnc;
+        if (bCmd == UP_CMD) br--;
+        else if (bCmd == DOWN_CMD) br++;
+        else if (bCmd == LEFT_CMD) bc--;
+        else if (bCmd == RIGHT_CMD) bc++;
     }
 }
-
