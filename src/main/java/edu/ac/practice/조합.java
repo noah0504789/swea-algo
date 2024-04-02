@@ -28,7 +28,7 @@ public class 조합 {
 
             long c1 = factorial[N];
             long c2 = (factorial[N-R]*factorial[R]) % MOD;
-            long c3 = cal(c2, MOD-2);
+            long c3 = fermat(c2, MOD-2);
 
             sb.append("#").append(" ").append(t).append(c1*c3 % MOD);
             sb.append("\n");
@@ -37,12 +37,13 @@ public class 조합 {
         System.out.println(sb);
     }
 
-    private static long cal(long n, long k) {
-        if (k == 1) return n;
+    private static long fermat(long n, int k) {
+        if (k==0) return 1;
 
-        long x = cal(n, k/2) % MOD;
-        if (k % 2 == 0) return x*x% MOD;
+        long tmp = fermat(n,k/2);
+        long ret = (tmp*tmp) % MOD;
 
-        return (((x*x)% MOD)*n)% MOD;
+        if (k%2==0) return ret;
+        return (ret*n) % MOD;
     }
 }
