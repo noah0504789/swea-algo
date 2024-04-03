@@ -3,6 +3,26 @@ package edu.ac.practice.simulation;
 import java.io.*;
 import java.util.*;
 
+/**
+ 1..w열까지 수직으로 구슬을 깨뜨려 최대한 많은 벽돌을 깨뜨리자
+ 1<=N<=4 (던지는 횟수)
+ 쏘는 행동 같음->재귀
+
+ 구슬 떨어진 위치 -> 조합적 문제(순열O, 조합X, 부분집합X)
+ 중복순열-> 선택 중복 가능
+
+ 해당 벽돌 깨뜨리기
+ 주변벽돌 연쇄 깨뜨리기(상하좌우) -> flood fill(dfs/bfs)
+ 중력작용 처리(남아있는 벽돌 내리기)
+ 남아있는 벽돌 계수(가지치기-최적해=0)
+ 맞춘 구슬의 숫자가 1-연쇄작용X, 중력작용X
+
+ 다음 구슬 쏘기
+ 맵 복사해서 복원하기
+
+ 디버그용 출력 메소드 만들어서 상태 파악하기
+ **/
+
 public class 벽돌깨기_김태희 {
     static Stack<Integer> stack = new Stack<>();
     static int[] dr = {-1,1,0,0};
