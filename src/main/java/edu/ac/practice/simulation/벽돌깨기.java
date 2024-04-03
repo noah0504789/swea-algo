@@ -108,8 +108,8 @@ public class 벽돌깨기 {
 
     private static int spread(int sr, int sc) {
         int cnt = 0;
-        queue.offer(new int[] {sr, sc});
 
+        queue.offer(new int[] {sr, sc});
         while (!queue.isEmpty()) {
             int[] cp = queue.poll();
             int r = cp[0], c = cp[1], power = get(r, c);
@@ -164,6 +164,9 @@ public class 벽돌깨기 {
     }
 
     private static void rollback() {
-        System.arraycopy(copy, 0, board, 0, W);
+//        System.arraycopy(copy, 0, board, 0, W);
+        for (int c = 0; c < W; c++) {
+            board[c] = copy[c];
+        }
     }
 }
