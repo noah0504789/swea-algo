@@ -43,7 +43,6 @@ public class 조합 {
         long tmp = fermat(n,k/2);
         long ret = (tmp*tmp) % MOD;
 
-        if (k%2==0) return ret;
-        return (ret*n) % MOD;
+        return k%2==0 ? ret : (ret*n) % MOD;
     }
 }
